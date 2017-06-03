@@ -181,6 +181,10 @@ impl<T> MockTransportCtl<T> {
         drop(self.tx.take());
         assert!(self.rx.next().is_none());
     }
+
+    pub fn drop_tx(&mut self) {
+        drop(self.tx.take());
+    }
 }
 
 fn transport<T>() -> (MockTransportCtl<T>, MockProtocol<T>) {

@@ -107,6 +107,9 @@ impl<T> Pipeline<T> where T: Dispatch {
 
     /// Returns true if the pipeline server dispatch has nothing left to do
     fn is_done(&self) -> bool {
+        trace!("is_done: run={}, is_flushed={}, has_in_flight()={}", self.run,
+               self.is_flushed, self.has_in_flight());
+
         !self.run && self.is_flushed && !self.has_in_flight()
     }
 
