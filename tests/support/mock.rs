@@ -256,7 +256,9 @@ pub fn pipeline_client_with_timer(dur: Option<Duration>)
         if let Some(dur) = dur {
             let timer = Timeout::new(dur, &handle).unwrap();
             match core.run(timer.select2(finished_rx)) {
-                Ok(Either::A((_, _))) | Err(Either::A((_, _))) => panic!(),
+                // timeout
+                Ok(Either::A(_)) | Err(Either::A(_)) => panic!(),
+                // not timeout
                 _ => {},
             }
         }
