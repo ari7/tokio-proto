@@ -8,13 +8,14 @@ use std::any::Any;
 use std::thread;
 use std::cell::RefCell;
 use std::io::{self, Read, Write};
+use std::time::Duration;
 
 use self::futures::stream::Wait;
 use self::futures::sync::mpsc;
 use self::futures::sync::oneshot;
 use self::futures::{Future, Stream, Sink, Poll, StartSend, Async};
 use self::tokio_core::io::Io;
-use self::tokio_core::reactor::Core;
+use self::tokio_core::reactor::{Core, Timeout};
 use self::tokio_proto::streaming::multiplex;
 use self::tokio_proto::streaming::pipeline;
 use self::tokio_proto::streaming::{Message, Body};
@@ -209,7 +210,10 @@ struct CompleteOnDrop {
 impl Drop for CompleteOnDrop {
     fn drop(&mut self) {
         self.tx.take().unwrap().complete(());
-        self.thread.take().unwrap().join().unwrap();
+        match self.thread.take().unwrap().join(){
+            Err(_) => panic!("timeout"),
+            Ok(_) => {},
+        }
     }
 }
 
@@ -222,6 +226,20 @@ pub fn pipeline_client()
                                               io::Error>>>,
         Box<Any>)
 {
+    pipeline_client_with_timer(None)
+}
+
+pub fn pipeline_client_with_timer(dur: Option<Duration>)
+    -> (MockTransportCtl<pipeline::Frame<&'static str, u32, io::Error>>,
+        Box<Service<Request = Message<&'static str, MockBodyStream>,
+                    Response = Message<&'static str, Body<u32, io::Error>>,
+                    Error = io::Error,
+                    Future = Response<Message<&'static str, Body<u32, io::Error>>,
+                                              io::Error>>>,
+        Box<Any>)
+{
+    use futures::future::Either;
+
     drop(env_logger::init());
 
     let (ctl, proto) = transport();
@@ -234,7 +252,17 @@ pub fn pipeline_client()
 
         let service = proto.bind_client(&handle, MockIo);
         tx.complete(service);
-        drop(core.run(finished_rx));
+
+        if let Some(dur) = dur {
+            let timer = Timeout::new(dur, &handle).unwrap();
+            match core.run(timer.select2(finished_rx)) {
+                Ok(Either::A((_, _))) | Err(Either::A((_, _))) => panic!(),
+                _ => {},
+            }
+        }
+        else {
+            drop(core.run(finished_rx));
+        }
     });
 
     let service = rx.wait().unwrap();

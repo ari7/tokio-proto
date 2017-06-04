@@ -119,7 +119,9 @@ fn test_streaming_client_transport_dropped() {
 
 #[test]
 fn test_streaming_client_transport_dropped_2() {
-    let (mut ctl, service, _other) = mock::pipeline_client();
+    let (mut ctl, service, _other) = mock::pipeline_client_with_timer(
+        Some(Duration::from_secs(3))
+    );
     let pong = service.call(Message::WithoutBody("ping"));
 
     thread::sleep(Duration::from_millis(20));
